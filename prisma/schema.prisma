@@ -1,0 +1,195 @@
+// MeetingMind AI — meeting notes & action items.
+// Ported from a Supabase/Postgres prototype (`New folder/supabase/migrations/*.sql`,
+// TanStack Start + Whisper + a paid AI gateway): RLS is replaced by app-layer
+// checks (see lib/org.ts) — every query is scoped by hand. Audio is stored as
+// Bytes directly in Postgres (Neon) instead of an external storage bucket, so
+// the whole stack stays on the two free services the project is built on:
+// Neon Postgres + Google Gemini.
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../lib/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ── Identity ────────────────────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String?
+  displayName  String?
+  avatarUrl    String?
+  createdAt    DateTime @default(now())
+
+  orgMemberships OrgMember[]
+  createdOrgs    Org[]       @relation("OrgCreatedBy")
+  sentInvites    OrgInvite[] @relation("InviteSentBy")
+  meetingsCreated Meeting[]  @relation("MeetingCreatedBy")
+}
+
+// ── Organization / Workspace ───────────────────────────────────────────
+
+enum OrgPlan {
+  FREE
+  TEAM
+  BUSINESS
+}
+
+enum OrgRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+model Org {
+  id                   String   @id @default(uuid())
+  name                 String
+  slug                 String   @unique
+  plan                 OrgPlan  @default(FREE)
+  stripeCustomerId     String?  @unique
+  stripeSubscriptionId String?  @unique
+  createdBy            String
+  createdAt            DateTime @default(now())
+
+  creator    User        @relation("OrgCreatedBy", fields: [createdBy], references: [id], onDelete: Cascade)
+  members    OrgMember[]
+  invites    OrgInvite[]
+  workspaces Workspace[]
+
+  @@index([createdBy])
+}
+
+model OrgMember {
+  id        String   @id @default(uuid())
+  orgId     String
+  userId    String
+  role      OrgRole  @default(MEMBER)
+  createdAt DateTime @default(now())
+
+  org  Org  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, userId])
+  @@index([userId])
+}
+
+model OrgInvite {
+  id         String    @id @default(uuid())
+  orgId      String
+  email      String
+  role       OrgRole   @default(MEMBER)
+  token      String    @unique @default(cuid())
+  invitedBy  String
+  expiresAt  DateTime
+  acceptedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  org     Org  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  inviter User @relation("InviteSentBy", fields: [invitedBy], references: [id], onDelete: Cascade)
+
+  @@index([orgId, email])
+}
+
+model Workspace {
+  id        String   @id @default(uuid())
+  orgId     String
+  name      String
+  slug      String
+  createdAt DateTime @default(now())
+
+  org      Org       @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  meetings Meeting[]
+
+  @@unique([orgId, slug])
+  @@index([orgId])
+}
+
+// ── Meetings ────────────────────────────────────────────────────────────
+
+enum MeetingStatus {
+  PROCESSING
+  READY
+  FAILED
+}
+
+enum ActionStatus {
+  OPEN
+  DONE
+}
+
+model Meeting {
+  id               String        @id @default(uuid())
+  workspaceId      String
+  title            String
+  meetingDate      DateTime      @default(now())
+  durationSeconds  Int           @default(0)
+  audio            Bytes?
+  audioMimeType    String?
+  status           MeetingStatus @default(PROCESSING)
+  error            String?
+  shareToken       String?       @unique
+  createdById      String
+  createdAt        DateTime      @default(now())
+
+  workspace   Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  creator     User               @relation("MeetingCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
+  transcript  Transcript?
+  summary     MeetingSummary?
+  decisions   Decision[]
+  actionItems ActionItem[]
+
+  @@index([workspaceId, meetingDate])
+}
+
+model Transcript {
+  id        String   @id @default(uuid())
+  meetingId String   @unique
+  fullText  String
+  segments  Json     @default("[]")
+  createdAt DateTime @default(now())
+
+  meeting Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+}
+
+model MeetingSummary {
+  id             String   @id @default(uuid())
+  meetingId      String   @unique
+  summaryText    String
+  keyTopics      String[] @default([])
+  followupEmail  String?
+  generatedAt    DateTime @default(now())
+
+  meeting Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+}
+
+model Decision {
+  id          String   @id @default(uuid())
+  meetingId   String
+  description String
+  context     String?
+  createdAt   DateTime @default(now())
+
+  meeting Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  @@index([meetingId])
+}
+
+model ActionItem {
+  id                String       @id @default(uuid())
+  meetingId         String
+  description       String
+  assigneeLabel     String?
+  dueDate           DateTime?
+  status            ActionStatus @default(OPEN)
+  sourceSegmentRef  Float?
+  createdAt         DateTime     @default(now())
+
+  meeting Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  @@index([meetingId])
+}
