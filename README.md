@@ -2,11 +2,37 @@
 
 **AI meeting notes and action items — built on a 100% free stack.**
 
+[![Live demo](https://img.shields.io/badge/demo-live-22c55e?style=flat-square)](https://meeting-mind-ai-zeta.vercel.app/)
+![Next.js 16](https://img.shields.io/badge/Next.js-16-000000?style=flat-square&logo=nextdotjs)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript&logoColor=white)
+![Prisma 7](https://img.shields.io/badge/Prisma-7-2D3748?style=flat-square&logo=prisma)
+![Neon](https://img.shields.io/badge/Neon-Postgres-00E599?style=flat-square&logo=postgresql&logoColor=white)
+![Gemini](https://img.shields.io/badge/AI-Google%20Gemini-8E75B2?style=flat-square&logo=googlegemini&logoColor=white)
+
+**Live demo:** https://meeting-mind-ai-zeta.vercel.app/ — sign up, create an
+organization, and upload or record a short clip.
+
 Record a meeting or upload an existing recording. MeetingMind sends the audio
 straight to Gemini, which transcribes it, labels speakers, writes a factual
 summary, logs the decisions that were actually made, extracts action items
-with owners and due dates, and drafts a follow-up email — all searchable
-across every meeting your team has ever run.
+with owners and due dates, and drafts a follow-up email. Every action item from
+every meeting lands on one shared board for the team.
+
+## Contents
+
+- [Why this stack is fully free](#why-this-stack-is-fully-free)
+- [Features](#features)
+- [Tech stack](#tech-stack)
+- [Getting started](#getting-started)
+- [Environment variables](#environment-variables)
+- [Seeding demo meetings](#seeding-demo-meetings)
+- [How processing works](#how-processing-works)
+- [Known issues](#known-issues)
+- [API routes](#api-routes)
+- [Project structure](#project-structure)
+- [Deploying to Vercel](#deploying-to-vercel)
+- [Author](#author)
+- [License](#license)
 
 ## Why this stack is fully free
 
@@ -29,9 +55,10 @@ creating a Stripe account.
 
 ## Features
 
-- **Auth & organizations** — email/password sign-up (+ optional free Google OAuth), multi-tenant organizations with `owner / admin / member` roles, each holding one or more workspaces
+- **Auth & organizations** — email/password sign-up (Google OAuth is wired on the server, UI button pending), multi-tenant organizations with `owner / admin / member` roles, each holding one or more workspaces
 - **Upload or record** — drag-and-drop an MP3/WAV/M4A/webm file (up to 20MB locally, 4MB on Vercel — see Known issues), or record straight from the browser mic with a live waveform level meter
 - **One Gemini call per meeting** — transcription, speaker diarization, a factual summary, key topics, decisions, action items (owner + due date) and a follow-up email draft, all extracted in a single structured request. The prompt is deliberately conservative: it never invents a decision, owner or date that wasn't actually said
+- **Dashboard** — every meeting in the current workspace with status (Processing / Ready / Failed), search by title and a status filter
 - **Meeting detail page** — tabbed summary/transcript view, an inline audio player (the recording is stored in Postgres, streamed back on demand), timestamped speaker-labelled transcript, one-click action item toggling, copy-to-clipboard follow-up email
 - **Cross-meeting action item board** — every action item across every meeting, grouped by source meeting, filterable by status and assignee
 - **Shareable read-only links** — toggle a public link per meeting so people outside your organization can see the transcript and summary without signing in
@@ -53,10 +80,35 @@ creating a Stripe account.
 
 ## Getting started
 
-### 1. Install dependencies
+**Prerequisites:** Node.js **20.9+**, a free Neon database, a free Gemini API key.
+
+### 1. Clone and install
 
 ```bash
-npm install
+git clone https://github.com/murtaza008/MeetingMind-AI.git
+cd MeetingMind-AI
+npm install        # also runs `prisma generate` (postinstall)
+```
+
+Then create a `.env` file in the project root with this template and fill it in
+over the next steps:
+
+```bash
+# Required
+DATABASE_URL=""                    # Neon connection string
+NEXTAUTH_SECRET=""                 # openssl rand -base64 32
+NEXTAUTH_URL="http://localhost:3000"
+GOOGLE_GENERATIVE_AI_API_KEY=""    # https://aistudio.google.com/apikey
+
+# Optional: Google sign-in
+GOOGLE_CLIENT_ID=""
+GOOGLE_CLIENT_SECRET=""
+
+# Optional: Stripe (leave blank for demo billing mode)
+STRIPE_SECRET_KEY=""
+STRIPE_WEBHOOK_SECRET=""
+STRIPE_PRICE_TEAM=""
+STRIPE_PRICE_BUSINESS=""
 ```
 
 ### 2. Create a free Neon Postgres database
@@ -84,7 +136,10 @@ Paste the result into `.env` as `NEXTAUTH_SECRET`.
 
 ### 5. (Optional) Google sign-in
 
-Skip this and only the email/password form will show. To enable it for free:
+Skip this step; it is not needed. When both variables are set, `lib/auth.ts`
+registers the Google provider and creates a local user on the first Google
+sign-in, **but the login and sign-up pages do not have a Google button yet**, so
+email/password is the only sign-in path in the UI. To prepare the backend:
 
 1. Create an OAuth Client in the [Google Cloud Console](https://console.cloud.google.com/apis/credentials).
 2. Add `http://localhost:3000/api/auth/callback/google` as an authorized redirect URI.
@@ -98,8 +153,11 @@ demo mode automatically. To wire up real (test-mode, free) Stripe Checkout:
 1. Create a free account at [stripe.com](https://stripe.com).
 2. Grab your **test** keys from the [API keys page](https://dashboard.stripe.com/test/apikeys).
 3. Create two recurring Prices in test mode (Team, Business) and copy their price IDs.
-4. Fill in `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_PRICE_TEAM`, `STRIPE_PRICE_BUSINESS` in `.env`.
+4. Fill in `STRIPE_SECRET_KEY`, `STRIPE_PRICE_TEAM`, `STRIPE_PRICE_BUSINESS` in `.env`.
+   (Checkout is server-side redirect, so no publishable key is needed.)
 5. For webhooks locally, run `stripe listen --forward-to localhost:3000/api/webhooks/stripe` and paste the printed secret into `STRIPE_WEBHOOK_SECRET`.
+   The webhook keeps the plan in sync on `customer.subscription.created`,
+   `customer.subscription.updated` and `customer.subscription.deleted`.
 
 ### 7. Push the database schema
 
@@ -116,6 +174,61 @@ npm run dev
 Open [http://localhost:3000](http://localhost:3000). Sign up, create an
 organization, upload a short audio clip (or record one), and watch the
 transcript, summary, decisions and action items land on the meeting page.
+
+### npm scripts
+
+| Script | What it does |
+| --- | --- |
+| `npm run dev` | Dev server on http://localhost:3000 |
+| `npm run build` | `next build` (does **not** touch the database schema, see [Deploying](#deploying-to-vercel)) |
+| `npm start` | Serve the production build |
+| `npm run lint` | ESLint |
+| `npx prisma db push` | Sync `prisma/schema.prisma` to the database |
+
+## Environment variables
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `DATABASE_URL` | **yes** | Neon Postgres connection string (app data **and** uploaded audio) |
+| `NEXTAUTH_SECRET` | **yes** | Signs session JWTs (`AUTH_SECRET` also works with Auth.js v5) |
+| `NEXTAUTH_URL` | local only | Base URL; also the fallback origin for Stripe redirect URLs |
+| `GOOGLE_GENERATIVE_AI_API_KEY` | to process meetings | Gemini key; without it uploads fail with a clear "AI is not configured" message |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | no | Register the Google OAuth provider (backend only; no UI button yet) |
+| `STRIPE_SECRET_KEY` | no | Real Stripe Checkout; empty = demo billing mode |
+| `STRIPE_WEBHOOK_SECRET` | with Stripe | Verifies webhook signatures |
+| `STRIPE_PRICE_TEAM` / `STRIPE_PRICE_BUSINESS` | with Stripe | Recurring Price IDs |
+| `SEED_USER_EMAIL` | no | Default account for the seed script |
+
+`VERCEL` is set automatically by Vercel and lowers the upload cap to 4 MB (see Known issues).
+
+## Seeding demo meetings
+
+`scripts/seed-meetings.ts` adds three finished demo meetings (transcript, summary,
+decisions, action items, follow-up email and a playable recording from
+`scripts/demo-meeting.wav`) to an **existing** account's workspace. Sign up and
+create an organization first, then:
+
+```bash
+npx tsx scripts/seed-meetings.ts you@example.com --dry   # preview, writes nothing
+npx tsx scripts/seed-meetings.ts you@example.com         # insert
+npx tsx scripts/check-seed.ts you@example.com            # read-only summary
+```
+
+Re-running is safe (meetings are matched by title). The seeded transcripts and
+summaries are hand-written; upload a real recording to see the Gemini pipeline run.
+
+## How processing works
+
+1. The browser uploads the file (or the `MediaRecorder` recording) to
+   `POST /api/meetings/upload` with the workspace id and duration.
+2. The route checks the size cap and, on the Free plan, the 3-meetings-per-month
+   limit, then stores the audio as `bytea` on a new `Meeting` row with status `PROCESSING`.
+3. **One** `generateObject` call ([`lib/gemini.ts`](lib/gemini.ts)) sends the audio as an
+   inline file part to `gemini-flash-latest` with a zod schema for speaker segments,
+   summary, key topics, decisions, action items (`assignee`, `dueDate`, timestamp)
+   and the follow-up email.
+4. Transcript, summary, decisions and action items are written in one transaction
+   and the meeting flips to `READY`, or to `FAILED` with the error message.
 
 ## Known issues
 
@@ -145,6 +258,43 @@ transcript, summary, decisions and action items land on the meeting page.
   job to poll, the step-by-step progress indicator on the upload screen is
   driven by elapsed time on the client, not real backend state. The actual
   meeting `status` (`PROCESSING` / `READY` / `FAILED`) is the source of truth.
+- **Search covers meeting titles only.** Transcripts are stored but not full-text indexed.
+- **Only the meeting cap is enforced per plan.** The Free plan's 3 meetings / month is
+  checked server-side; other items on the pricing table (workspace count,
+  share links, roles) are available on every plan.
+- **Invites are links, not emails.** Creating an invite copies an `/invite/<token>`
+  link to your clipboard for you to send; no email is delivered.
+- **No Google sign-in button.** The Google provider is configured in `lib/auth.ts`
+  when its env vars are set, but the auth form only offers email/password.
+
+## API routes
+
+All routes except auth, `public/*` and the Stripe webhook require a session, and
+check the caller's organization membership and role.
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| `POST` | `/api/auth/signup` | Create an account |
+| `GET` `POST` | `/api/orgs` | Your orgs + workspaces / create an org with its first workspace |
+| `PATCH` | `/api/orgs/[orgId]` | Rename the organization |
+| `POST` | `/api/orgs/[orgId]/workspaces` | Add a workspace |
+| `GET` | `/api/orgs/[orgId]/members` | Members and roles |
+| `PATCH` `DELETE` | `/api/orgs/[orgId]/members/[memberId]` | Change role / remove (the last owner is protected) |
+| `GET` `POST` | `/api/orgs/[orgId]/invites` | List / create invite links |
+| `DELETE` | `/api/orgs/[orgId]/invites/[inviteId]` | Revoke an invite |
+| `GET` | `/api/invites/[token]` | Read an invite |
+| `POST` | `/api/invites/accept` | Accept an invite |
+| `GET` | `/api/meetings?workspaceId=&q=` | List meetings (title search) |
+| `POST` | `/api/meetings/upload` | Upload audio and run the Gemini analysis |
+| `GET` `DELETE` | `/api/meetings/[id]` | Meeting detail / delete |
+| `GET` | `/api/meetings/[id]/audio` | Stream the stored recording |
+| `POST` | `/api/meetings/[id]/share` | Toggle the public share link |
+| `GET` | `/api/public/meetings/[token]` | Public read-only meeting (no auth) |
+| `GET` | `/api/action-items?orgId=` | Cross-meeting action item board |
+| `PATCH` | `/api/action-items/[id]` | Update an action item's status |
+| `POST` | `/api/billing/checkout` | Stripe Checkout, or instant plan switch in demo mode |
+| `POST` | `/api/billing/portal` | Stripe Customer Portal |
+| `POST` | `/api/webhooks/stripe` | Stripe webhook receiver |
 
 ## Project structure
 
@@ -160,8 +310,9 @@ meetingmind-ai/
       dashboard/, new/, meetings/[id]/, actions/, team/, billing/, settings/
     api/
       auth/                         # NextAuth handler + signup endpoint
-      orgs/, workspaces/, invites/  # Org, workspace, member, invite CRUD
-      meetings/                    # List, upload (runs Gemini inline), detail, audio, share
+      orgs/                         # Orgs, plus [orgId]/workspaces, /members, /invites
+      invites/                      # Read + accept an invite by token
+      meetings/                     # List, upload (runs Gemini inline), detail, audio, share
       public/meetings/[token]/      # Unauthenticated share-link read
       action-items/                 # Cross-meeting action item board
       billing/, webhooks/stripe/    # Stripe checkout, portal, webhook
@@ -170,13 +321,19 @@ meetingmind-ai/
     dashboard/                      # AppShell (sidebar, workspace switcher), PersonAvatar
     meetings/                       # Waveform (live mic level meter), ProcessingSteps, StatusBadge
     auth/                           # Shared login/signup form
-    motion/                         # Reveal, CountUp — replay on every scroll re-entry
+    motion/                         # Reveal, Stagger, CountUp — replay on every scroll re-entry
+    ui/                             # Dropdown menu, toaster
+    theme-toggle.tsx                # Light / dark / system switch
   lib/
     prisma.ts, auth.ts, auth.config.ts, session.ts, org.ts
     gemini.ts                       # The single generateObject call that does transcription + analysis
     meetings.ts, plans.ts, stripe.ts, format.ts
     hooks/                          # TanStack Query hooks (use-org, use-meetings, use-action-items, use-team)
   prisma/schema.prisma               # Full data model (Org → Workspace → Meeting → Transcript/Summary/Decision/ActionItem)
+  scripts/
+    seed-meetings.ts, check-seed.ts  # Demo data seeder + read-only check
+    demo-meeting.wav                 # Audio used by the seeded meetings
+  proxy.ts                           # Redirects signed-out visitors (Next.js 16 "proxy", formerly middleware)
 ```
 
 ## Deploying to Vercel
@@ -210,6 +367,11 @@ No `output: "standalone"`, custom `vercel.json`, or edge-runtime
 configuration is needed — every API route uses the default Node.js
 runtime, which the Neon Prisma adapter (`@prisma/adapter-neon`) requires
 anyway (it depends on the `ws` package for its WebSocket connection).
+
+## Author
+
+Built by **Murtaza Mazhar** — [GitHub @murtaza008](https://github.com/murtaza008) ·
+[Repository](https://github.com/murtaza008/MeetingMind-AI) · [Live demo](https://meeting-mind-ai-zeta.vercel.app/)
 
 ## License
 
