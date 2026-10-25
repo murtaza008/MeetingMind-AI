@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, Check, Copy, Link2, Loader2, Trash2 } from "lucide-react";
@@ -23,6 +23,14 @@ export default function MeetingDetailPage() {
   const deleteMeeting = useDeleteMeeting();
   const [tab, setTab] = useState<"summary" | "transcript">("summary");
   const [copied, setCopied] = useState(false);
+  const audioRef = useRef<HTMLAudioElement>(null);
+
+  function seekTo(seconds: number) {
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.currentTime = seconds;
+    void audio.play().catch(() => undefined);
+  }
 
   if (error && !data) {
     return (
@@ -143,7 +151,7 @@ export default function MeetingDetailPage() {
         </p>
 
         {meeting.hasAudio && (
-          <audio controls preload="none" className="mt-4 w-full" src={`/api/meetings/${id}/audio`} />
+          <audio ref={audioRef} controls preload="metadata" className="mt-4 w-full" src={`/api/meetings/${id}/audio`} />
         )}
 
         {meeting.status === "PROCESSING" && (
@@ -283,9 +291,20 @@ export default function MeetingDetailPage() {
                   <ul className="space-y-3">
                     {segments.map((s, i) => (
                       <li key={i} className="grid grid-cols-[52px_1fr] gap-3">
-                        <span className="font-mono text-[11px] text-muted-foreground">
-                          {formatTimestamp(s.start)}
-                        </span>
+                        {meeting.hasAudio ? (
+                          <button
+                            type="button"
+                            onClick={() => seekTo(s.start)}
+                            title="Play from here"
+                            className="self-start text-left font-mono text-[11px] text-primary hover:underline"
+                          >
+                            {formatTimestamp(s.start)}
+                          </button>
+                        ) : (
+                          <span className="font-mono text-[11px] text-muted-foreground">
+                            {formatTimestamp(s.start)}
+                          </span>
+                        )}
                         <span>
                           <span className={`font-mono text-[11px] font-medium ${speakerClass(s.speaker, speakers)}`}>
                             {s.speaker}

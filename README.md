@@ -219,6 +219,16 @@ follow-up email. All AI output is stored in the seed, so browsing the demo never
 calls Gemini. The roadmap review has a permanent public link at
 `/share/demo-lumen-roadmap-review`.
 
+Each sample meeting also has a playable recording (`prisma/demo-audio/*.mp3`,
+about 3 minutes and 0.7 MB each). The recordings are generated with Windows'
+built-in text-to-speech, one consistent voice per speaker, and every
+transcript timestamp is the real moment that line is spoken. Clicking a
+timestamp jumps the player there. After editing a transcript in
+`lib/demo-data.ts`, regenerate the audio and its timings on a Windows machine
+with `npx tsx scripts/demo-audio/generate.mts`, then run `npm run seed:demo`.
+If the audio is out of date, the seed skips it and falls back to estimated
+timings.
+
 **What demo visitors can and can't do**
 
 - They can move action items between Open / In progress / Done on the board,

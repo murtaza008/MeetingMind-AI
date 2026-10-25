@@ -7,7 +7,7 @@ import type {
   Workspace,
 } from "@/lib/generated/prisma/client";
 
-type FullMeeting = Meeting & {
+type FullMeeting = Omit<Meeting, "audio"> & {
   workspace: Workspace;
   transcript: Transcript | null;
   summary: MeetingSummary | null;
@@ -26,7 +26,9 @@ export function shapeMeetingDetail(meeting: FullMeeting) {
       status: meeting.status,
       error: meeting.error,
       shareToken: meeting.shareToken,
-      hasAudio: meeting.audio != null,
+      // The audio column itself is omitted from queries (lib/prisma.ts); a stored
+      // recording always has its MIME type set alongside it.
+      hasAudio: meeting.audioMimeType != null,
       workspaceName: meeting.workspace.name,
     },
     transcript: meeting.transcript

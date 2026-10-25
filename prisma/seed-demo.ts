@@ -28,7 +28,8 @@ async function main() {
     const result = await resetDemoData(prisma, { password: process.env.DEMO_PASSWORD ?? "" });
     console.log(
       `Demo reset: ${result.meetings} meetings, ${result.actionItems} action items, ` +
-        `${result.members} members (replaced ${result.removedOrgs} previous demo org${result.removedOrgs === 1 ? "" : "s"}).`,
+        `${result.members} members, ${result.recordings} recordings ` +
+        `(replaced ${result.removedOrgs} previous demo org${result.removedOrgs === 1 ? "" : "s"}).`,
     );
     console.log(`Sign in via "Try demo" (account ${DEMO_EMAIL}). Public share link: /share/${DEMO_SHARE_TOKEN}`);
   } finally {

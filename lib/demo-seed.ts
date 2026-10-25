@@ -1,6 +1,10 @@
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import bcrypt from "bcryptjs";
 import type { PrismaClient } from "./generated/prisma/client";
 import { DEMO_EMAIL } from "./demo";
+// Written by scripts/demo-audio/generate.mts alongside prisma/demo-audio/*.mp3.
+import demoAudio from "./demo-audio.json";
 import {
   DEMO_MEETINGS,
   DEMO_ORG_ID,
@@ -24,7 +28,23 @@ function startOfUtcDay(date: Date) {
   return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
 }
 
-function buildSegments(turns: [string, string][]) {
+type DemoAudio = { file: string; durationSeconds: number; segments: number[][] };
+
+/** The generated recording for a meeting, if its timings still line up with the transcript. */
+function audioFor(meetingId: string, turnCount: number): DemoAudio | null {
+  const audio = (demoAudio as Record<string, DemoAudio>)[meetingId];
+  if (!audio) return null;
+  if (audio.segments.length !== turnCount) {
+    console.warn(`Demo audio for ${meetingId} is stale; run scripts/demo-audio/generate.mts.`);
+    return null;
+  }
+  return audio;
+}
+
+function buildSegments(turns: [string, string][], audio: DemoAudio | null) {
+  if (audio) {
+    return turns.map(([speaker, text], i) => ({ speaker, start: audio.segments[i][0], end: audio.segments[i][1], text }));
+  }
   let cursor = 0;
   return turns.map(([speaker, text]) => {
     const seconds = Math.max(2, Math.round(text.split(/\s+/).length / WORDS_PER_SECOND));
@@ -49,7 +69,7 @@ export async function resetDemoData(prisma: PrismaClient, options: { password: s
   const today = startOfUtcDay(now);
   const passwordHash = await bcrypt.hash(password, 12);
 
-  return prisma.$transaction(
+  const result = await prisma.$transaction(
     async (tx) => {
       const userIds = {} as Record<DemoPersonKey, string>;
       for (const [key, person] of Object.entries(DEMO_PEOPLE) as [DemoPersonKey, (typeof DEMO_PEOPLE)[DemoPersonKey]][]) {
@@ -102,8 +122,9 @@ export async function resetDemoData(prisma: PrismaClient, options: { password: s
 
       let actionItemCount = 0;
       for (const meeting of DEMO_MEETINGS) {
-        const segments = buildSegments(meeting.turns);
-        const durationSeconds = segments.at(-1)?.end ?? 0;
+        const audio = audioFor(meeting.id, meeting.turns.length);
+        const segments = buildSegments(meeting.turns, audio);
+        const durationSeconds = audio?.durationSeconds ?? Math.round(segments.at(-1)?.end ?? 0);
         const meetingDate = new Date(today - meeting.daysAgo * DAY_MS + meeting.hour * 60 * 60 * 1000);
         const processedAt = new Date(meetingDate.getTime() + (durationSeconds + 45) * 1000);
         // Small offsets keep the createdAt ordering (used by the UI) stable.
@@ -120,6 +141,7 @@ export async function resetDemoData(prisma: PrismaClient, options: { password: s
             shareToken: meeting.shareToken ?? null,
             createdById: userIds[meeting.createdBy],
             createdAt: processedAt,
+            audioMimeType: audio ? "audio/mpeg" : null,
             transcript: {
               create: {
                 fullText: segments.map((s) => `${s.speaker}: ${s.text}`).join("\n"),
@@ -150,6 +172,7 @@ export async function resetDemoData(prisma: PrismaClient, options: { password: s
               })),
             },
           },
+          select: { id: true },
         });
         actionItemCount += meeting.actionItems.length;
       }
@@ -163,4 +186,21 @@ export async function resetDemoData(prisma: PrismaClient, options: { password: s
     },
     { maxWait: 15_000, timeout: 45_000 },
   );
+
+  // Recordings are a few MB in total, so they're written after the
+  // transaction to keep it short. A missing file only costs the audio player.
+  let recordings = 0;
+  for (const meeting of DEMO_MEETINGS) {
+    const audio = audioFor(meeting.id, meeting.turns.length);
+    if (!audio) continue;
+    try {
+      const bytes = await readFile(join(process.cwd(), "prisma", "demo-audio", audio.file));
+      await prisma.meeting.update({ where: { id: meeting.id }, data: { audio: bytes }, select: { id: true } });
+      recordings++;
+    } catch (error) {
+      console.error(`Could not attach demo audio ${audio.file}`, error);
+      await prisma.meeting.update({ where: { id: meeting.id }, data: { audioMimeType: null }, select: { id: true } });
+    }
+  }
+  return { ...result, recordings };
 }
