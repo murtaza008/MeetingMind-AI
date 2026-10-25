@@ -85,6 +85,11 @@ export type MeetingSummary = Prisma.MeetingSummaryModel
  */
 export type Decision = Prisma.DecisionModel
 /**
+ * Model DemoUsage
+ * 
+ */
+export type DemoUsage = Prisma.DemoUsageModel
+/**
  * Model ActionItem
  * 
  */

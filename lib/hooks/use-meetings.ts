@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { json } from "@/lib/hooks/fetcher";
+import type { ActionStatus } from "@/lib/hooks/use-action-items";
 
 export type MeetingStatus = "PROCESSING" | "READY" | "FAILED";
 
@@ -40,7 +41,7 @@ export type MeetingDetail = {
     description: string;
     assigneeLabel: string | null;
     dueDate: string | null;
-    status: "OPEN" | "DONE";
+    status: ActionStatus;
   }[];
 };
 
@@ -84,6 +85,7 @@ export function useUploadMeeting() {
       return json<{ id: string }>("/api/meetings/upload", { method: "POST", body: form });
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["meetings"] }),
+    onSettled: () => qc.invalidateQueries({ queryKey: ["demo-status"] }),
   });
 }
 

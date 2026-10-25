@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { requireUserId } from "@/lib/session";
+import { forbidInDemo, requireSessionUser, requireUserId } from "@/lib/session";
 import { requireOrgRole, ADMIN_ROLES } from "@/lib/org";
 import { handleApiError } from "@/lib/handle-error";
 
@@ -31,8 +31,9 @@ const INVITE_TTL_DAYS = 7;
 export async function POST(request: Request, ctx: RouteContext<"/api/orgs/[orgId]/invites">) {
   try {
     const { orgId } = await ctx.params;
-    const userId = await requireUserId();
-    await requireOrgRole(userId, orgId, ADMIN_ROLES);
+    const user = await requireSessionUser();
+    forbidInDemo(user, "Inviting team members");
+    await requireOrgRole(user.id, orgId, ADMIN_ROLES);
     const body = CreateInviteInput.parse(await request.json());
 
     const invite = await prisma.orgInvite.create({
@@ -40,7 +41,7 @@ export async function POST(request: Request, ctx: RouteContext<"/api/orgs/[orgId
         orgId,
         email: body.email,
         role: body.role,
-        invitedBy: userId,
+        invitedBy: user.id,
         expiresAt: new Date(Date.now() + INVITE_TTL_DAYS * 24 * 60 * 60 * 1000),
       },
     });

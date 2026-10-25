@@ -119,6 +119,7 @@ enum MeetingStatus {
 
 enum ActionStatus {
   OPEN
+  IN_PROGRESS
   DONE
 }
 
@@ -177,6 +178,16 @@ model Decision {
   meeting Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
 
   @@index([meetingId])
+}
+
+// ── Public demo ─────────────────────────────────────────────────────────
+
+// Audio uploads made by the shared demo account, one row per UTC day. Every
+// visitor signs in as the same user, so this is the only place the daily cap
+// can be counted atomically. Cleared by the daily demo reset.
+model DemoUsage {
+  day     String @id // YYYY-MM-DD, UTC
+  uploads Int    @default(0)
 }
 
 model ActionItem {

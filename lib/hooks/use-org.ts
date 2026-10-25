@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { json } from "@/lib/hooks/fetcher";
 
 export type OrgRole = "OWNER" | "ADMIN" | "MEMBER";
@@ -101,6 +102,7 @@ export function useCheckout(orgId: string | undefined) {
       }
       queryClient.invalidateQueries({ queryKey: ["memberships"] });
     },
+    onError: (error) => toast.error(error.message),
   });
 }
 
@@ -114,6 +116,7 @@ export function usePortal(orgId: string | undefined) {
     onSuccess: (result) => {
       window.location.href = result.url;
     },
+    onError: (error) => toast.error(error.message),
   });
 }
 

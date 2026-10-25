@@ -1,10 +1,18 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireUserId } from "@/lib/session";
+import { requireSessionUser } from "@/lib/session";
 import { requireWorkspaceMember } from "@/lib/org";
 import { analyzeMeetingAudio } from "@/lib/gemini";
 import { FREE_AUDIO_MAX_BYTES, FREE_MEETING_LIMIT } from "@/lib/plans";
 import { handleApiError } from "@/lib/handle-error";
+import { DEMO_TOO_LONG_MESSAGE, DEMO_UPLOAD_LIMIT_MESSAGE } from "@/lib/demo";
+import { claimDemoUploadSlot, isWithinDemoDuration } from "@/lib/demo-limits";
+
+// The stored file is served back from /api/meetings/[id]/audio with this
+// content type, so only accept real audio (MediaRecorder may label it video/webm).
+function isAudioMimeType(mimeType: string) {
+  return /^audio\//.test(mimeType) || /^video\/(webm|mp4)(;|$)/.test(mimeType);
+}
 
 // Longest a single request can run before the platform kills it. Gemini
 // audio analysis of a long recording can take a while on the free tier —
@@ -13,7 +21,8 @@ export const maxDuration = 60;
 
 export async function POST(request: Request) {
   try {
-    const userId = await requireUserId();
+    const user = await requireSessionUser();
+    const userId = user.id;
     const form = await request.formData();
     const file = form.get("file");
     const title = form.get("title");
@@ -56,6 +65,21 @@ export async function POST(request: Request) {
     const buffer = Buffer.from(await file.arrayBuffer());
     const durationSeconds = Number(durationSecondsRaw) || 0;
     const mimeType = file.type || "audio/webm";
+    if (!isAudioMimeType(mimeType)) {
+      return NextResponse.json({ error: "Upload an audio file (mp3, m4a, wav or webm)." }, { status: 415 });
+    }
+
+    // Every visitor shares the demo account, so its uploads are capped per day
+    // across everyone, and each clip is capped at 3 minutes. The slot is
+    // claimed before calling Gemini, so failed runs still count.
+    if (user.isDemo) {
+      if (!(await isWithinDemoDuration(buffer, mimeType, durationSeconds))) {
+        return NextResponse.json({ error: DEMO_TOO_LONG_MESSAGE }, { status: 413 });
+      }
+      if (!(await claimDemoUploadSlot())) {
+        return NextResponse.json({ error: DEMO_UPLOAD_LIMIT_MESSAGE }, { status: 429 });
+      }
+    }
     const meetingTitle =
       typeof title === "string" && title.trim()
         ? title.trim()
@@ -71,6 +95,8 @@ export async function POST(request: Request) {
         status: "PROCESSING",
         createdById: userId,
       },
+      // Don't send the audio blob straight back from the database.
+      select: { id: true },
     });
 
     try {
@@ -116,13 +142,14 @@ export async function POST(request: Request) {
               }),
             ]
           : []),
-        prisma.meeting.update({ where: { id: meeting.id }, data: { status: "READY" } }),
-      ], { timeout: 20000 });
+        prisma.meeting.update({ where: { id: meeting.id }, data: { status: "READY" }, select: { id: true } }),
+      ], { timeout: 30000 });
     } catch (aiError) {
       const message = aiError instanceof Error ? aiError.message : "Processing failed.";
       await prisma.meeting.update({
         where: { id: meeting.id },
         data: { status: "FAILED", error: message },
+        select: { id: true },
       });
     }
 

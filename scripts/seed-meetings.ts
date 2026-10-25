@@ -1,9 +1,8 @@
 /**
  * Seeds demo meetings into an existing user's workspace.
  *
- *   npx tsx scripts/seed-meetings.ts --dry     # show what it would do, write nothing
- *   npx tsx scripts/seed-meetings.ts           # actually insert
- *   npx tsx scripts/seed-meetings.ts you@mail.com
+ *   npx tsx scripts/seed-meetings.ts you@example.com --dry   # show what it would do, write nothing
+ *   npx tsx scripts/seed-meetings.ts you@example.com         # actually insert
  *
  * Safe to re-run: meetings are matched by title inside the workspace, so an
  * existing meeting is skipped rather than duplicated.
@@ -26,11 +25,11 @@ import ws from "ws";
 neonConfig.webSocketConstructor = ws;
 
 const DRY_RUN = process.argv.includes("--dry");
-const EMAIL = (
-  process.argv.slice(2).find((a) => !a.startsWith("--")) ??
-  process.env.SEED_USER_EMAIL ??
-  "murtazaaa7798@gmail.com"
-).toLowerCase();
+const EMAIL = (process.argv.slice(2).find((a) => !a.startsWith("--")) ?? process.env.SEED_USER_EMAIL ?? "").toLowerCase();
+if (!EMAIL) {
+  console.error("Pass the account email: npx tsx scripts/seed-meetings.ts you@example.com (or set SEED_USER_EMAIL).");
+  process.exit(1);
+}
 
 const AUDIO_PATH = join(import.meta.dirname, "demo-meeting.wav");
 const AUDIO_MIME = "audio/wav";

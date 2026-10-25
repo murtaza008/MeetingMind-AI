@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Loader2, Mic } from "lucide-react";
 import { json } from "@/lib/hooks/fetcher";
 import type { MeetingDetail, Segment } from "@/lib/hooks/use-meetings";
-import { formatDuration, formatMeetingDate, formatTimestamp, speakerClass } from "@/lib/format";
+import { formatDueDate, formatDuration, formatMeetingDate, formatTimestamp, speakerClass } from "@/lib/format";
 
 export default function SharedMeetingPage() {
   const { token } = useParams<{ token: string }>();
@@ -108,7 +108,8 @@ function SharedMeetingBody({ data }: { data: MeetingDetail }) {
                   </span>
                   <span className="mt-0.5 block font-mono text-[10.5px] text-muted-foreground">
                     {a.assigneeLabel || "Unassigned"}
-                    {a.dueDate ? ` · due ${formatMeetingDate(a.dueDate)}` : ""}
+                    {a.dueDate ? ` · due ${formatDueDate(a.dueDate)}` : ""}
+                    {a.status === "IN_PROGRESS" ? " · in progress" : ""}
                   </span>
                 </li>
               ))}

@@ -35,7 +35,7 @@ export async function GET(request: Request) {
         status: m.status,
         workspaceId: m.workspaceId,
         workspaceName: m.workspace.name,
-        openActionCount: m.actionItems.filter((a) => a.status === "OPEN").length,
+        openActionCount: m.actionItems.filter((a) => a.status !== "DONE").length,
         actionCount: m.actionItems.length,
         creatorName: m.creator.displayName ?? m.creator.email,
       })),

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { requireUserId } from "@/lib/session";
+import { forbidInDemo, requireSessionUser } from "@/lib/session";
 import { requireOrgRole, ADMIN_ROLES } from "@/lib/org";
 import { isStripeConfigured, getStripe } from "@/lib/stripe";
 import { PLAN_PRICE_ENV } from "@/lib/plans";
@@ -14,7 +14,9 @@ const CheckoutInput = z.object({
 
 export async function POST(request: Request) {
   try {
-    const userId = await requireUserId();
+    const sessionUser = await requireSessionUser();
+    forbidInDemo(sessionUser, "Changing billing");
+    const userId = sessionUser.id;
     const { orgId, plan } = CheckoutInput.parse(await request.json());
     await requireOrgRole(userId, orgId, ADMIN_ROLES);
 

@@ -7,7 +7,11 @@ import ws from "ws";
 
 neonConfig.webSocketConstructor = ws;
 
-const EMAIL = (process.argv[2] ?? "murtazaaa7798@gmail.com").toLowerCase();
+const EMAIL = (process.argv[2] ?? process.env.SEED_USER_EMAIL ?? "").toLowerCase();
+if (!EMAIL) {
+  console.error("Pass the account email: npx tsx scripts/check-seed.ts you@example.com");
+  process.exit(1);
+}
 
 async function main() {
   const adapter = new PrismaNeon({ connectionString: process.env.DATABASE_URL! });

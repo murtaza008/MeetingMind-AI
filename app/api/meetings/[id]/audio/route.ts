@@ -21,6 +21,8 @@ export async function GET(_request: Request, ctx: RouteContext<"/api/meetings/[i
       headers: {
         "Content-Type": meeting.audioMimeType ?? "audio/webm",
         "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "inline",
       },
     });
   } catch (error) {

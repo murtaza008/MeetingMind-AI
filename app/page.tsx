@@ -17,6 +17,7 @@ import {
   Lock,
 } from "lucide-react";
 import { ProductMock } from "@/components/landing/ProductMock";
+import { TryDemoButton } from "@/components/auth/TryDemoButton";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Reveal, Stagger, StaggerItem } from "@/components/motion/reveal";
 
@@ -244,6 +245,10 @@ export default function Landing() {
                 Start free
                 <ArrowRight className="size-4 transition-transform duration-150 group-hover:translate-x-0.5" />
               </Link>
+              <TryDemoButton
+                label="Try demo — no signup"
+                className="rounded-xl border border-primary/40 bg-card px-6 py-3 text-sm font-semibold text-primary hover:-translate-y-0.5 hover:bg-primary/5"
+              />
               <Link
                 href="/login"
                 className="inline-flex items-center rounded-xl border border-border-strong bg-card px-6 py-3 text-sm font-semibold text-foreground hover:bg-secondary"
@@ -252,7 +257,9 @@ export default function Landing() {
               </Link>
             </div>
           </Reveal>
-          <p className="mt-4 font-mono text-xs text-muted-foreground">No card required · 3 meetings on the free tier</p>
+          <p className="mt-4 font-mono text-xs text-muted-foreground">
+            No card required · 3 meetings on the free tier · or explore a ready-made demo workspace
+          </p>
 
           <Reveal delay={0.2} y={24} className="mt-14 text-left">
             <ProductMock />

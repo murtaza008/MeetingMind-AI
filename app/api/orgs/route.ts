@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireUserId } from "@/lib/session";
+import { forbidInDemo, requireSessionUser, requireUserId } from "@/lib/session";
 import { listMembershipsForUser, createOrgWithWorkspace } from "@/lib/org";
 import { handleApiError } from "@/lib/handle-error";
 
@@ -23,10 +23,11 @@ const CreateOrgInput = z.object({
 /** POST: create an org, make the caller OWNER, add a first workspace. */
 export async function POST(request: Request) {
   try {
-    const userId = await requireUserId();
+    const user = await requireSessionUser();
+    forbidInDemo(user, "Creating organizations");
     const body = CreateOrgInput.parse(await request.json());
     const { org, workspace } = await createOrgWithWorkspace(
-      userId,
+      user.id,
       body.orgName,
       body.workspaceName,
     );

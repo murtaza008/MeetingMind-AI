@@ -406,6 +406,7 @@ export const ModelName = {
   Transcript: 'Transcript',
   MeetingSummary: 'MeetingSummary',
   Decision: 'Decision',
+  DemoUsage: 'DemoUsage',
   ActionItem: 'ActionItem'
 } as const
 
@@ -422,7 +423,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "user" | "org" | "orgMember" | "orgInvite" | "workspace" | "meeting" | "transcript" | "meetingSummary" | "decision" | "actionItem"
+    modelProps: "user" | "org" | "orgMember" | "orgInvite" | "workspace" | "meeting" | "transcript" | "meetingSummary" | "decision" | "demoUsage" | "actionItem"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -1092,6 +1093,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    DemoUsage: {
+      payload: Prisma.$DemoUsagePayload<ExtArgs>
+      fields: Prisma.DemoUsageFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.DemoUsageFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$DemoUsagePayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.DemoUsageFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$DemoUsagePayload>
+        }
+        findFirst: {
+          args: Prisma.DemoUsageFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$DemoUsagePayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.DemoUsageFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$DemoUsagePayload>
+        }
+        findMany: {
+          args: Prisma.DemoUsageFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$DemoUsagePayload>[]
+        }
+        create: {
+          args: Prisma.DemoUsageCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$DemoUsagePayload>
+        }
+        createMany: {
+          args: Prisma.DemoUsageCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.DemoUsageCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$DemoUsagePayload>[]
+        }
+        delete: {
+          args: Prisma.DemoUsageDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$DemoUsagePayload>
+        }
+        update: {
+          args: Prisma.DemoUsageUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$DemoUsagePayload>
+        }
+        deleteMany: {
+          args: Prisma.DemoUsageDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.DemoUsageUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.DemoUsageUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$DemoUsagePayload>[]
+        }
+        upsert: {
+          args: Prisma.DemoUsageUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$DemoUsagePayload>
+        }
+        aggregate: {
+          args: Prisma.DemoUsageAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateDemoUsage>
+        }
+        groupBy: {
+          args: Prisma.DemoUsageGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.DemoUsageGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.DemoUsageCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.DemoUsageCountAggregateOutputType> | number
+        }
+      }
+    }
     ActionItem: {
       payload: Prisma.$ActionItemPayload<ExtArgs>
       fields: Prisma.ActionItemFieldRefs
@@ -1318,6 +1393,14 @@ export const DecisionScalarFieldEnum = {
 } as const
 
 export type DecisionScalarFieldEnum = (typeof DecisionScalarFieldEnum)[keyof typeof DecisionScalarFieldEnum]
+
+
+export const DemoUsageScalarFieldEnum = {
+  day: 'day',
+  uploads: 'uploads'
+} as const
+
+export type DemoUsageScalarFieldEnum = (typeof DemoUsageScalarFieldEnum)[keyof typeof DemoUsageScalarFieldEnum]
 
 
 export const ActionItemScalarFieldEnum = {
@@ -1679,6 +1762,7 @@ export type GlobalOmitConfig = {
   transcript?: Prisma.TranscriptOmit
   meetingSummary?: Prisma.MeetingSummaryOmit
   decision?: Prisma.DecisionOmit
+  demoUsage?: Prisma.DemoUsageOmit
   actionItem?: Prisma.ActionItemOmit
 }
 

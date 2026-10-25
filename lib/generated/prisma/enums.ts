@@ -38,6 +38,7 @@ export type MeetingStatus = (typeof MeetingStatus)[keyof typeof MeetingStatus]
 
 export const ActionStatus = {
   OPEN: 'OPEN',
+  IN_PROGRESS: 'IN_PROGRESS',
   DONE: 'DONE'
 } as const
 

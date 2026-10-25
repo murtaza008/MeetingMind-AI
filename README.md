@@ -9,8 +9,9 @@
 ![Neon](https://img.shields.io/badge/Neon-Postgres-00E599?style=flat-square&logo=postgresql&logoColor=white)
 ![Gemini](https://img.shields.io/badge/AI-Google%20Gemini-8E75B2?style=flat-square&logo=googlegemini&logoColor=white)
 
-**Live demo:** https://meeting-mind-ai-zeta.vercel.app/ — sign up, create an
-organization, and upload or record a short clip.
+**Live demo:** https://meeting-mind-ai-zeta.vercel.app/ — click **Try demo** to
+explore a ready-made workspace with five processed meetings, no sign-up needed.
+Or create your own account and upload or record a short clip.
 
 Record a meeting or upload an existing recording. MeetingMind sends the audio
 straight to Gemini, which transcribes it, labels speakers, writes a factual
@@ -25,13 +26,13 @@ every meeting lands on one shared board for the team.
 - [Tech stack](#tech-stack)
 - [Getting started](#getting-started)
 - [Environment variables](#environment-variables)
+- [Public demo mode](#public-demo-mode)
 - [Seeding demo meetings](#seeding-demo-meetings)
 - [How processing works](#how-processing-works)
 - [Known issues](#known-issues)
 - [API routes](#api-routes)
 - [Project structure](#project-structure)
 - [Deploying to Vercel](#deploying-to-vercel)
-- [Author](#author)
 - [License](#license)
 
 ## Why this stack is fully free
@@ -60,7 +61,7 @@ creating a Stripe account.
 - **One Gemini call per meeting** — transcription, speaker diarization, a factual summary, key topics, decisions, action items (owner + due date) and a follow-up email draft, all extracted in a single structured request. The prompt is deliberately conservative: it never invents a decision, owner or date that wasn't actually said
 - **Dashboard** — every meeting in the current workspace with status (Processing / Ready / Failed), search by title and a status filter
 - **Meeting detail page** — tabbed summary/transcript view, an inline audio player (the recording is stored in Postgres, streamed back on demand), timestamped speaker-labelled transcript, one-click action item toggling, copy-to-clipboard follow-up email
-- **Cross-meeting action item board** — every action item across every meeting, grouped by source meeting, filterable by status and assignee
+- **Cross-meeting action item board** — every action item across every meeting on an Open / In progress / Done board (drag cards between columns), or grouped by source meeting; filterable by status and assignee
 - **Shareable read-only links** — toggle a public link per meeting so people outside your organization can see the transcript and summary without signing in
 - **Team management** — invite teammates by shareable link, manage roles, revoke access
 - **Billing** — Free / Team / Business plans with real Stripe Checkout (test mode) or automatic demo-mode fallback; the Free plan is capped at 3 meetings/month, enforced server-side
@@ -85,8 +86,8 @@ creating a Stripe account.
 ### 1. Clone and install
 
 ```bash
-git clone https://github.com/murtaza008/MeetingMind-AI.git
-cd MeetingMind-AI
+git clone <your-fork-url> meetingmind-ai
+cd meetingmind-ai
 npm install        # also runs `prisma generate` (postinstall)
 ```
 
@@ -183,6 +184,7 @@ transcript, summary, decisions and action items land on the meeting page.
 | `npm run build` | `next build` (does **not** touch the database schema, see [Deploying](#deploying-to-vercel)) |
 | `npm start` | Serve the production build |
 | `npm run lint` | ESLint |
+| `npm run seed:demo` | Build or reset the public demo org (see [Public demo mode](#public-demo-mode)) |
 | `npx prisma db push` | Sync `prisma/schema.prisma` to the database |
 
 ## Environment variables
@@ -197,9 +199,65 @@ transcript, summary, decisions and action items land on the meeting page.
 | `STRIPE_SECRET_KEY` | no | Real Stripe Checkout; empty = demo billing mode |
 | `STRIPE_WEBHOOK_SECRET` | with Stripe | Verifies webhook signatures |
 | `STRIPE_PRICE_TEAM` / `STRIPE_PRICE_BUSINESS` | with Stripe | Recurring Price IDs |
-| `SEED_USER_EMAIL` | no | Default account for the seed script |
+| `DEMO_PASSWORD` | for the public demo | Password of the shared demo account; "Try demo" uses it server-side, it never reaches the browser |
+| `CRON_SECRET` | for the public demo | Protects `/api/cron/demo-reset`; Vercel Cron sends it as a Bearer token |
+| `SEED_USER_EMAIL` | no | Target account for `scripts/seed-meetings.ts` |
 
 `VERCEL` is set automatically by Vercel and lowers the upload cap to 4 MB (see Known issues).
+
+## Public demo mode
+
+A **Try demo** button on the landing page and the login page signs visitors
+into a shared demo account (`demo@meetingmind.demo`) with no typing. The sign-in
+happens on the server (`POST /api/demo/login`), so the password never reaches
+the browser. Visitors land in **Lumen Labs**, a fictional startup on the
+Business plan with three members (owner, admin, member) and five fully
+processed meetings: a sales discovery call, sprint planning, a client kickoff,
+a roadmap review and a hiring debrief. Each one has a speaker-labelled
+transcript, summary, decisions, action items with owners and due dates, and a
+follow-up email. All AI output is stored in the seed, so browsing the demo never
+calls Gemini. The roadmap review has a permanent public link at
+`/share/demo-lumen-roadmap-review`.
+
+**What demo visitors can and can't do**
+
+- They can move action items between Open / In progress / Done on the board,
+  read everything, and share a meeting.
+- They can upload or record audio, but only **2 uploads per day across all
+  visitors**, each **at most 3 minutes**. This is enforced on the server with an
+  atomic counter (`DemoUsage`) and a duration check.
+- These actions are blocked with a friendly message: deleting meetings,
+  turning off a share link, creating or renaming organizations and
+  workspaces, inviting members, changing roles, accepting invites, and billing
+  (Stripe checkout and portal). The app has no email/password or API-key
+  settings for a visitor to change.
+
+**Setup**
+
+```bash
+# .env — generate both with: openssl rand -base64 32
+DEMO_PASSWORD="..."
+CRON_SECRET="..."
+
+npx prisma db push      # adds the IN_PROGRESS status and the DemoUsage table
+npm run seed:demo       # builds the demo org; safe to re-run
+```
+
+`npm run seed:demo` is idempotent. It deletes and rebuilds only the demo org
+(the cascade also removes meetings and audio that visitors uploaded) plus the
+demo accounts' memberships and the upload counter. Meeting and due dates are
+relative to the day it runs. Real users and their data are never touched, and
+sign-ups on the reserved `@meetingmind.demo` / `@lumenlabs.demo` domains are
+refused.
+
+**Daily reset.** `vercel.json` schedules `GET /api/cron/demo-reset` once a day
+(00:00 UTC). With `CRON_SECRET` set in the Vercel project, Vercel sends it as
+`Authorization: Bearer <CRON_SECRET>`, and the route runs the same reset as the
+seed script. To trigger it by hand:
+
+```bash
+curl -H "Authorization: Bearer $CRON_SECRET" https://<your-domain>/api/cron/demo-reset
+```
 
 ## Seeding demo meetings
 
@@ -295,6 +353,9 @@ check the caller's organization membership and role.
 | `POST` | `/api/billing/checkout` | Stripe Checkout, or instant plan switch in demo mode |
 | `POST` | `/api/billing/portal` | Stripe Customer Portal |
 | `POST` | `/api/webhooks/stripe` | Stripe webhook receiver |
+| `POST` | `/api/demo/login` | "Try demo": signs in to the shared demo account server-side |
+| `GET` | `/api/demo/status` | Demo uploads left today |
+| `GET` | `/api/cron/demo-reset` | Daily demo reset (requires `Authorization: Bearer $CRON_SECRET`) |
 
 ## Project structure
 
@@ -363,15 +424,11 @@ meetingmind-ai/
 4. **Deploy.** Vercel runs `npm install` (which triggers `postinstall` →
    `prisma generate`), then `npm run build`.
 
-No `output: "standalone"`, custom `vercel.json`, or edge-runtime
-configuration is needed — every API route uses the default Node.js
-runtime, which the Neon Prisma adapter (`@prisma/adapter-neon`) requires
-anyway (it depends on the `ws` package for its WebSocket connection).
-
-## Author
-
-Built by **Murtaza Mazhar** — [GitHub @murtaza008](https://github.com/murtaza008) ·
-[Repository](https://github.com/murtaza008/MeetingMind-AI) · [Live demo](https://meeting-mind-ai-zeta.vercel.app/)
+No `output: "standalone"` or edge-runtime configuration is needed — every
+API route uses the default Node.js runtime, which the Neon Prisma adapter
+(`@prisma/adapter-neon`) requires anyway (it depends on the `ws` package for
+its WebSocket connection). `vercel.json` only registers the daily demo-reset
+cron job (see [Public demo mode](#public-demo-mode)).
 
 ## License
 

@@ -1,8 +1,8 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Mic, Pause, Play, Square, Upload } from "lucide-react";
+import { FlaskConical, Loader2, Mic, Pause, Play, Square, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/dashboard/app-shell";
 import { useWorkspace } from "@/lib/hooks/use-org";
@@ -11,11 +11,16 @@ import { Waveform } from "@/components/meetings/Waveform";
 import { ProcessingSteps } from "@/components/meetings/ProcessingSteps";
 import { formatDuration } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { useDemoStatus, useIsDemo } from "@/lib/hooks/use-demo";
+import { DEMO_MAX_AUDIO_SECONDS, DEMO_TOO_LONG_MESSAGE, DEMO_UPLOAD_LIMIT_MESSAGE } from "@/lib/demo";
 
 export default function NewMeetingPage() {
   const router = useRouter();
   const { workspace, workspaces, org } = useWorkspace();
   const upload = useUploadMeeting();
+  const isDemo = useIsDemo();
+  const { data: demoStatus } = useDemoStatus(isDemo);
+  const demoLimitReached = demoStatus?.isDemo === true && demoStatus.uploadsRemaining <= 0;
 
   const [tab, setTab] = useState<"upload" | "record">("upload");
   const [title, setTitle] = useState("");
@@ -52,17 +57,21 @@ export default function NewMeetingPage() {
       });
       router.push(`/meetings/${result.id}`);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Upload failed");
+      toast.error(error instanceof Error ? error.message : "Upload failed", { duration: 8000 });
       setBusy(false);
     }
   }
 
   const handleFile = async (file: File) => {
+    if (demoLimitReached) return void toast.error(DEMO_UPLOAD_LIMIT_MESSAGE, { duration: 8000 });
     const duration = await readDuration(file);
+    // The server enforces this too; checking here saves uploading a file that will be refused.
+    if (isDemo && duration > DEMO_MAX_AUDIO_SECONDS) return void toast.error(DEMO_TOO_LONG_MESSAGE, { duration: 8000 });
     void submit(file, duration, file.name);
   };
 
   const startRecording = async () => {
+    if (demoLimitReached) return void toast.error(DEMO_UPLOAD_LIMIT_MESSAGE, { duration: 8000 });
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
@@ -126,6 +135,18 @@ export default function NewMeetingPage() {
     if (timerRef.current) clearInterval(timerRef.current);
   };
 
+  // Demo recordings stop by themselves at the 3-minute cap and go straight to processing.
+  const stopRef = useRef(stopRecording);
+  useEffect(() => {
+    stopRef.current = stopRecording;
+  });
+  useEffect(() => {
+    if (isDemo && recording && elapsed >= DEMO_MAX_AUDIO_SECONDS) {
+      toast.info("Demo recordings are capped at 3 minutes, so this one stopped automatically.");
+      stopRef.current();
+    }
+  }, [isDemo, recording, elapsed]);
+
   if (busy) {
     return (
       <AppShell title="New meeting">
@@ -150,6 +171,23 @@ export default function NewMeetingPage() {
         <p className="mt-1 text-sm text-muted-foreground">
           Upload a recording or capture one now. Processing starts as soon as the audio lands.
         </p>
+
+        {demoStatus?.isDemo && (
+          <div className="mt-4 flex gap-2.5 rounded-lg border border-primary/25 bg-primary/5 px-4 py-3 text-[13px]">
+            <FlaskConical className="mt-0.5 size-4 shrink-0 text-primary" strokeWidth={2} />
+            <p className="leading-relaxed">
+              {demoLimitReached ? (
+                DEMO_UPLOAD_LIMIT_MESSAGE
+              ) : (
+                <>
+                  Demo account: {demoStatus.uploadsRemaining} of {demoStatus.uploadLimit} uploads left today,
+                  shared by every visitor, and each recording can be up to 3 minutes. The sample meetings on the
+                  dashboard show the full output without uploading anything.
+                </>
+              )}
+            </p>
+          </div>
+        )}
 
         <div className="mt-6 grid gap-3 sm:grid-cols-2">
           <label className="block">

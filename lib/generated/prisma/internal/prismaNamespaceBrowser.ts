@@ -60,6 +60,7 @@ export const ModelName = {
   Transcript: 'Transcript',
   MeetingSummary: 'MeetingSummary',
   Decision: 'Decision',
+  DemoUsage: 'DemoUsage',
   ActionItem: 'ActionItem'
 } as const
 
@@ -192,6 +193,14 @@ export const DecisionScalarFieldEnum = {
 } as const
 
 export type DecisionScalarFieldEnum = (typeof DecisionScalarFieldEnum)[keyof typeof DecisionScalarFieldEnum]
+
+
+export const DemoUsageScalarFieldEnum = {
+  day: 'day',
+  uploads: 'uploads'
+} as const
+
+export type DemoUsageScalarFieldEnum = (typeof DemoUsageScalarFieldEnum)[keyof typeof DemoUsageScalarFieldEnum]
 
 
 export const ActionItemScalarFieldEnum = {

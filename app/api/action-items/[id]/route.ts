@@ -6,9 +6,9 @@ import { requireOrgMember } from "@/lib/org";
 import { handleApiError } from "@/lib/handle-error";
 
 const UpdateInput = z.object({
-  status: z.enum(["OPEN", "DONE"]).optional(),
+  status: z.enum(["OPEN", "IN_PROGRESS", "DONE"]).optional(),
   assigneeLabel: z.string().trim().max(120).optional(),
-  dueDate: z.string().nullable().optional(),
+  dueDate: z.iso.date().nullable().optional(),
 });
 
 export async function PATCH(request: Request, ctx: RouteContext<"/api/action-items/[id]">) {

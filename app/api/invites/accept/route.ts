@@ -3,6 +3,8 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { UnauthorizedError } from "@/lib/session";
+import { ForbiddenError } from "@/lib/org";
+import { demoBlockedMessage, isDemoEmail } from "@/lib/demo";
 import { handleApiError } from "@/lib/handle-error";
 
 const AcceptInviteInput = z.object({ token: z.string().min(1) });
@@ -11,6 +13,8 @@ export async function POST(request: Request) {
   try {
     const session = await auth();
     if (!session?.user?.id || !session.user.email) throw new UnauthorizedError();
+    // Otherwise any org could pull the shared demo account (and every visitor) into itself.
+    if (isDemoEmail(session.user.email)) throw new ForbiddenError(demoBlockedMessage("Joining other organizations"));
     const { token } = AcceptInviteInput.parse(await request.json());
 
     const invite = await prisma.orgInvite.findUnique({ where: { token } });

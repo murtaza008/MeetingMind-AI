@@ -9,20 +9,34 @@ import { AppShell } from "@/components/dashboard/app-shell";
 import { StatusBadge } from "@/components/meetings/StatusBadge";
 import { ProcessingSteps } from "@/components/meetings/ProcessingSteps";
 import { useDeleteMeeting, useMeeting, useToggleShare, type Segment } from "@/lib/hooks/use-meetings";
-import { useToggleActionItem } from "@/lib/hooks/use-action-items";
+import { useUpdateActionItem } from "@/lib/hooks/use-action-items";
 import { useWorkspace } from "@/lib/hooks/use-org";
-import { formatDuration, formatMeetingDate, formatTimestamp, speakerClass } from "@/lib/format";
+import { formatDueDate, formatDuration, formatMeetingDate, formatTimestamp, speakerClass } from "@/lib/format";
 
 export default function MeetingDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { org } = useWorkspace();
-  const { data, isLoading } = useMeeting(id);
-  const toggle = useToggleActionItem(org?.id);
+  const { data, isLoading, error } = useMeeting(id);
+  const toggle = useUpdateActionItem(org?.id);
   const toggleShare = useToggleShare(id);
   const deleteMeeting = useDeleteMeeting();
   const [tab, setTab] = useState<"summary" | "transcript">("summary");
   const [copied, setCopied] = useState(false);
+
+  if (error && !data) {
+    return (
+      <AppShell title="Meeting">
+        <div className="mx-auto max-w-md px-5 py-24 text-center">
+          <h1 className="font-display text-xl">This meeting isn&rsquo;t available.</h1>
+          <p className="mt-2 text-sm text-muted-foreground">{error.message}</p>
+          <Link href="/dashboard" className="mt-5 inline-block text-sm font-medium text-primary hover:underline">
+            Back to all meetings
+          </Link>
+        </div>
+      </AppShell>
+    );
+  }
 
   if (isLoading || !data?.meeting) {
     return (
@@ -46,22 +60,39 @@ export default function MeetingDetailPage() {
     setTimeout(() => setCopied(false), 1800);
   }
 
-  async function copyShareLink() {
-    const result = await toggleShare.mutateAsync();
-    if (result.shareToken) {
-      const url = `${window.location.origin}/share/${result.shareToken}`;
-      await navigator.clipboard.writeText(url);
-      toast.success("Share link copied — anyone with it can view this meeting.");
-    } else {
+  async function copyLink(token: string) {
+    await navigator.clipboard.writeText(`${window.location.origin}/share/${token}`).catch(() => undefined);
+    toast.success("Share link copied — anyone with it can view this meeting.");
+  }
+
+  async function handleShare() {
+    if (meeting.shareToken) return copyLink(meeting.shareToken);
+    try {
+      const result = await toggleShare.mutateAsync();
+      if (result.shareToken) await copyLink(result.shareToken);
+    } catch (caught) {
+      toast.error(caught instanceof Error ? caught.message : "Could not create a share link.");
+    }
+  }
+
+  async function stopSharing() {
+    try {
+      await toggleShare.mutateAsync();
       toast.success("Share link disabled.");
+    } catch (caught) {
+      toast.error(caught instanceof Error ? caught.message : "Could not disable the share link.");
     }
   }
 
   async function handleDelete() {
     if (!confirm("Delete this meeting? This cannot be undone.")) return;
-    await deleteMeeting.mutateAsync(id);
-    toast.success("Meeting deleted");
-    router.push("/dashboard");
+    try {
+      await deleteMeeting.mutateAsync(id);
+      toast.success("Meeting deleted");
+      router.push("/dashboard");
+    } catch (caught) {
+      toast.error(caught instanceof Error ? caught.message : "Could not delete the meeting.");
+    }
   }
 
   return (
@@ -81,13 +112,22 @@ export default function MeetingDetailPage() {
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={copyShareLink}
+              onClick={handleShare}
               disabled={toggleShare.isPending}
               className="inline-flex items-center gap-1.5 rounded-md border border-border-strong px-2.5 py-1.5 text-[12px] transition-colors hover:bg-secondary"
             >
               <Link2 className="size-3.5" />
-              {meeting.shareToken ? "Sharing on — copy link" : "Share"}
+              {meeting.shareToken ? "Copy share link" : "Share"}
             </button>
+            {meeting.shareToken && (
+              <button
+                onClick={stopSharing}
+                disabled={toggleShare.isPending}
+                className="inline-flex items-center gap-1.5 rounded-md border border-border-strong px-2.5 py-1.5 text-[12px] text-muted-foreground transition-colors hover:bg-secondary"
+              >
+                Stop sharing
+              </button>
+            )}
             <button
               onClick={handleDelete}
               className="inline-flex items-center gap-1.5 rounded-md border border-border-strong px-2.5 py-1.5 text-[12px] text-destructive transition-colors hover:bg-destructive/10"
@@ -205,7 +245,8 @@ export default function MeetingDetailPage() {
                             </span>
                             <span className="font-mono text-[10.5px] text-muted-foreground">
                               {a.assigneeLabel || "Unassigned"}
-                              {a.dueDate ? ` · due ${formatMeetingDate(a.dueDate)}` : ""}
+                              {a.dueDate ? ` · due ${formatDueDate(a.dueDate)}` : ""}
+                              {a.status === "IN_PROGRESS" ? " · in progress" : ""}
                             </span>
                           </span>
                         </li>

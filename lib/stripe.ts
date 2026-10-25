@@ -17,6 +17,10 @@ export function getStripe(): Stripe {
   if (!process.env.STRIPE_SECRET_KEY) {
     throw new Error("Stripe is not configured (STRIPE_SECRET_KEY is unset).");
   }
+  // This is a public portfolio demo: never move real money, even if a live key is pasted in by mistake.
+  if (!/^(sk|rk)_test_/.test(process.env.STRIPE_SECRET_KEY)) {
+    throw new Error("Stripe is restricted to test mode. Use an sk_test_ key.");
+  }
   if (!_stripe) {
     _stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
   }

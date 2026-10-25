@@ -24,6 +24,27 @@ export function formatMeetingDate(iso: string | Date): string {
   });
 }
 
+/**
+ * Due dates are calendar dates stored as UTC midnight (Gemini returns YYYY-MM-DD),
+ * so format them in UTC — local time would show the previous day west of Greenwich.
+ */
+export function formatDueDate(iso: string | Date): string {
+  const d = new Date(iso);
+  const sameYear = d.getUTCFullYear() === new Date().getUTCFullYear();
+  return d.toLocaleDateString("en-US", {
+    timeZone: "UTC",
+    month: "short",
+    day: "numeric",
+    ...(sameYear ? {} : { year: "numeric" }),
+  });
+}
+
+/** True when a due date (UTC calendar date) is before today. */
+export function isOverdue(iso: string | Date): boolean {
+  const now = new Date();
+  return new Date(iso).getTime() < Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+}
+
 export function relativeDay(iso: string | Date): string {
   const d = new Date(iso);
   const diff = Math.floor((Date.now() - d.getTime()) / 86_400_000);

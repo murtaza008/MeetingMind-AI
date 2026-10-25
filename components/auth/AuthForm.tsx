@@ -8,8 +8,9 @@ import { signIn } from "next-auth/react";
 import { Mic } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { ease } from "@/components/motion/reveal";
+import { TryDemoButton } from "@/components/auth/TryDemoButton";
 
-export function AuthForm({ mode }: { mode: "login" | "signup" }) {
+export function AuthForm({ mode, demoUnavailable = false }: { mode: "login" | "signup"; demoUnavailable?: boolean }) {
   const isSignup = mode === "signup";
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -149,6 +150,28 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
               {loading ? "One sec…" : isSignup ? "Create account →" : "Sign in →"}
             </button>
           </form>
+
+          {!isSignup && (
+            <div className="mt-6">
+              <div className="flex items-center gap-3 text-[11px] uppercase tracking-wider text-muted-foreground">
+                <span className="h-px flex-1 bg-border" />
+                <span className="mono">or</span>
+                <span className="h-px flex-1 bg-border" />
+              </div>
+              <TryDemoButton
+                label="Try demo — no signup needed"
+                className="mt-4 w-full rounded-md border border-border-strong bg-card px-5 py-3 font-medium text-foreground transition-colors hover:bg-secondary"
+              />
+              <p className="mt-2 text-center text-[12px] text-muted-foreground">
+                Opens a sample workspace with five processed meetings.
+              </p>
+              {demoUnavailable && (
+                <div className="mt-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                  The demo isn&rsquo;t available right now. Please try again in a few minutes.
+                </div>
+              )}
+            </div>
+          )}
 
           <p className="mt-8 text-center text-sm text-muted-foreground">
             {isSignup ? "Already have an account? " : "New to MeetingMind? "}

@@ -8,6 +8,7 @@ import {
   Check,
   ChevronsUpDown,
   CreditCard,
+  FlaskConical,
   LayoutList,
   ListChecks,
   LogOut,
@@ -17,6 +18,8 @@ import {
   Users,
 } from "lucide-react";
 import { useWorkspace } from "@/lib/hooks/use-org";
+import { useIsDemo } from "@/lib/hooks/use-demo";
+import { DEMO_BANNER_MESSAGE } from "@/lib/demo";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/theme-toggle";
 import {
@@ -100,17 +103,18 @@ export function AppShell({
   const router = useRouter();
   const queryClient = useQueryClient();
   const { role } = useWorkspace();
+  const isDemo = useIsDemo();
 
-  async function handleSignOut() {
+  async function handleSignOut(destination = "/login") {
     await queryClient.cancelQueries();
     queryClient.clear();
     await signOut({ redirect: false });
-    router.replace("/login");
+    router.replace(destination);
   }
 
   return (
     <div className="flex min-h-screen bg-background">
-      <aside className="sticky top-0 flex h-screen w-[220px] shrink-0 flex-col border-r border-border bg-sidebar">
+      <aside className="sticky top-0 hidden h-screen w-[220px] shrink-0 flex-col md:flex border-r border-border bg-sidebar">
         <div className="flex h-12 items-center border-b border-border px-3">
           <Link href="/">
             <Logo />
@@ -153,7 +157,7 @@ export function AppShell({
             </span>
             <button
               type="button"
-              onClick={handleSignOut}
+              onClick={() => handleSignOut()}
               className="flex items-center gap-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
             >
               <LogOut className="h-3 w-3" strokeWidth={1.75} />
@@ -164,12 +168,55 @@ export function AppShell({
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
+        {isDemo && (
+          <div
+            role="status"
+            className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-primary/20 bg-primary/10 px-4 py-1.5 text-[12px] text-foreground"
+          >
+            <FlaskConical className="size-3.5 shrink-0 text-primary" strokeWidth={2} />
+            <span>{DEMO_BANNER_MESSAGE}</span>
+            <button
+              type="button"
+              onClick={() => handleSignOut("/signup")}
+              className="font-medium text-primary hover:underline"
+            >
+              Create your own account
+            </button>
+          </div>
+        )}
         <header className="sticky top-0 z-20 flex h-12 shrink-0 items-center gap-3 border-b border-border bg-background/85 px-4 backdrop-blur">
           <div className="min-w-0 flex-1 truncate text-[13px] font-medium text-foreground">
             {title}
           </div>
           {actions}
         </header>
+        {/* Below md the sidebar is hidden; this scrolling strip carries the same nav. */}
+        <nav className="flex items-center gap-1 overflow-x-auto border-b border-border px-2 py-1.5 md:hidden">
+          {NAV.map((item) => {
+            const active = pathname === item.to || pathname.startsWith(`${item.to}/`);
+            return (
+              <Link
+                key={item.to}
+                href={item.to}
+                className={cn(
+                  "flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-[12px] transition-colors",
+                  active ? "bg-sidebar-accent font-medium text-foreground" : "text-muted-foreground",
+                )}
+              >
+                <item.icon className={cn("h-3.5 w-3.5", active && "text-primary")} strokeWidth={1.75} />
+                {item.label}
+              </Link>
+            );
+          })}
+          <button
+            type="button"
+            onClick={() => handleSignOut()}
+            className="flex shrink-0 items-center gap-1 px-2 py-1 text-[12px] text-muted-foreground"
+          >
+            <LogOut className="h-3 w-3" strokeWidth={1.75} />
+            Sign out
+          </button>
+        </nav>
         <main className="min-w-0 flex-1">{children}</main>
       </div>
     </div>

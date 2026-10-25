@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { requireUserId } from "@/lib/session";
+import { forbidInDemo, requireSessionUser } from "@/lib/session";
 import { requireOrgRole, ADMIN_ROLES } from "@/lib/org";
 import { getStripe, isStripeConfigured } from "@/lib/stripe";
 import { handleApiError } from "@/lib/handle-error";
@@ -10,7 +10,9 @@ const PortalInput = z.object({ orgId: z.string() });
 
 export async function POST(request: Request) {
   try {
-    const userId = await requireUserId();
+    const user = await requireSessionUser();
+    forbidInDemo(user, "Changing billing");
+    const userId = user.id;
     const { orgId } = PortalInput.parse(await request.json());
     await requireOrgRole(userId, orgId, ADMIN_ROLES);
 
